@@ -203,7 +203,7 @@
 
     /* ===== JS-rendered Messages ===== */
     .message { display: flex; gap: 12px; padding: 8px 0; }
-    .message-indent { margin-left: 40px; }
+    .message-indent { margin-left: 40px; min-width: 0; overflow: hidden; }
     .message-avatar { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.75rem; font-weight: 600; font-family: 'Fira Code', monospace; color: white; }
     .avatar-user { background: var(--color-msg-user); }
     .avatar-assistant { background: var(--color-msg-assistant); }
