@@ -1,0 +1,1265 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CC LOG - Claude Code 会话日志查看器</title>
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            bg: { DEFAULT: '#0F172A', elevated: '#1E293B', hover: '#334155', active: '#1E3A2F', input: '#0F172A', code: '#020617', header: '#0F172A', status: '#020617' },
+            border: { DEFAULT: '#334155', subtle: '#1E293B', focus: '#22C55E' },
+            text: { primary: '#F8FAFC', secondary: '#94A3B8', tertiary: '#64748B', inverse: '#0F172A' },
+            cta: { DEFAULT: '#22C55E', hover: '#16A34A', muted: 'rgba(34,197,94,0.15)' },
+            accent: { blue: '#3B82F6', amber: '#F59E0B', red: '#EF4444', purple: '#A855F7' },
+            msg: { user: '#22C55E', assistant: '#3B82F6', 'tool-use': '#F59E0B', 'tool-result': '#8B5CF6', thinking: '#A855F7', error: '#EF4444', system: '#64748B' }
+          },
+          fontFamily: {
+            mono: ['Fira Code', 'Cascadia Code', 'JetBrains Mono', 'monospace'],
+            sans: ['Fira Sans', 'Inter', '-apple-system', 'sans-serif']
+          },
+          fontSize: {
+            '2xs': '0.75rem',
+            xs: '0.8125rem',
+            sm: '0.875rem',
+            base: '1rem',
+            lg: '1.25rem',
+            xl: '1.5rem'
+          },
+          zIndex: {
+            panel: '10', header: '100', dropdown: '200', modal: '300', toast: '400', tooltip: '500'
+          },
+          animation: {
+            'shimmer': 'shimmer 1.5s infinite',
+            'pulse-green': 'pulse-green 2s infinite',
+            'toast-in': 'toast-in 300ms ease',
+            'toast-out': 'toast-out 300ms ease forwards',
+            'modal-in': 'modal-in 200ms ease',
+            'message-in': 'message-in 200ms ease',
+            'highlight-flash': 'highlight-flash 1s ease-out',
+          },
+          keyframes: {
+            shimmer: { '0%': { backgroundPosition: '-200% 0' }, '100%': { backgroundPosition: '200% 0' } },
+            'pulse-green': { '0%,100%': { opacity: '1' }, '50%': { opacity: '0.4' } },
+            'toast-in': { from: { transform: 'translateX(100%)', opacity: '0' }, to: { transform: 'translateX(0)', opacity: '1' } },
+            'toast-out': { from: { transform: 'translateX(0)', opacity: '1' }, to: { transform: 'translateX(100%)', opacity: '0' } },
+            'modal-in': { from: { transform: 'scale(0.95)', opacity: '0' }, to: { transform: 'scale(1)', opacity: '1' } },
+            'message-in': { from: { transform: 'translateY(8px)', opacity: '0' }, to: { transform: 'translateY(0)', opacity: '1' } },
+            'highlight-flash': { '0%': { background: 'rgba(34,197,94,0.15)' }, '100%': { background: 'transparent' } },
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+
+  <style>
+    /* ===== CSS Custom Properties ===== */
+    :root {
+      --color-bg: #0F172A;
+      --color-bg-elevated: #1E293B;
+      --color-bg-hover: #334155;
+      --color-bg-active: #1E3A2F;
+      --color-bg-input: #0F172A;
+      --color-bg-code: #020617;
+      --color-bg-header: #0F172A;
+      --color-bg-status: #020617;
+      --color-border: #334155;
+      --color-border-subtle: #1E293B;
+      --color-border-focus: #22C55E;
+      --color-text-primary: #F8FAFC;
+      --color-text-secondary: #94A3B8;
+      --color-text-tertiary: #64748B;
+      --color-cta: #22C55E;
+      --color-cta-hover: #16A34A;
+      --color-cta-muted: rgba(34,197,94,0.15);
+      --color-accent-blue: #3B82F6;
+      --color-accent-amber: #F59E0B;
+      --color-accent-red: #EF4444;
+      --color-accent-purple: #A855F7;
+      --color-msg-user: #22C55E;
+      --color-msg-assistant: #3B82F6;
+      --color-msg-tool-use: #F59E0B;
+      --color-msg-tool-result: #8B5CF6;
+      --color-msg-thinking: #A855F7;
+      --color-msg-error: #EF4444;
+      --color-msg-system: #64748B;
+      --header-height: 48px;
+      --status-bar-height: 28px;
+      --panel-project-width: 250px;
+      --panel-session-width: 350px;
+      --resize-handle-width: 4px;
+      --transition-fast: 150ms ease;
+      --transition-base: 200ms ease;
+      --transition-slow: 300ms ease;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.3);
+      --shadow-md: 0 4px 6px rgba(0,0,0,0.4);
+      --shadow-lg: 0 10px 20px rgba(0,0,0,0.5);
+      --shadow-glow-green: 0 0 12px rgba(34,197,94,0.3);
+      --radius-sm: 4px;
+      --radius-md: 6px;
+      --radius-lg: 8px;
+      --radius-full: 9999px;
+    }
+
+    /* ===== Global Styles ===== */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; background: var(--color-bg); color: var(--color-text-primary); font-family: 'Fira Sans', 'Inter', -apple-system, sans-serif; font-size: 14px; line-height: 1.5; }
+
+    /* ===== Custom Scrollbars ===== */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: var(--radius-full); }
+    ::-webkit-scrollbar-thumb:hover { background: var(--color-text-tertiary); }
+    * { scrollbar-width: thin; scrollbar-color: var(--color-border) transparent; }
+
+    /* ===== Focus Visible ===== */
+    :focus-visible { outline: 2px solid var(--color-border-focus); outline-offset: 2px; border-radius: var(--radius-sm); }
+    :focus:not(:focus-visible) { outline: none; }
+
+    /* ===== Reduced Motion ===== */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+    }
+
+    /* ===== Resize Handle ===== */
+    .resize-handle { width: var(--resize-handle-width); cursor: col-resize; background: transparent; flex-shrink: 0; position: relative; z-index: 10; transition: background var(--transition-fast); }
+    .resize-handle:hover, .resize-handle.dragging { background: var(--color-cta); }
+    .resize-handle::after { content: ''; position: absolute; top: 0; bottom: 0; left: -4px; right: -4px; }
+
+    /* ===== Panel Item ===== */
+    .panel-item { transition: background var(--transition-fast), border-color var(--transition-fast); cursor: pointer; }
+    .panel-item:hover { background: var(--color-bg-hover); }
+    .panel-item.active { background: var(--color-bg-active); border-left-color: var(--color-cta); }
+
+    /* ===== Collapsible ===== */
+    .collapsible-content { transition: max-height var(--transition-base), opacity var(--transition-base); overflow: hidden; }
+    .collapsible-content.collapsed { max-height: 0; opacity: 0; }
+    .collapsible-content.expanded { max-height: 2000px; opacity: 1; }
+    .collapse-toggle svg.chevron-icon { transition: transform var(--transition-fast); }
+    .collapse-toggle.expanded svg.chevron-icon { transform: rotate(90deg); }
+
+    /* ===== Skeleton ===== */
+    .skeleton { background: linear-gradient(90deg, var(--color-bg-elevated) 25%, var(--color-bg-hover) 50%, var(--color-bg-elevated) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: var(--radius-sm); }
+
+    /* ===== Toast ===== */
+    .toast { animation: toast-in 300ms ease; }
+    .toast.removing { animation: toast-out 300ms ease forwards; }
+
+    /* ===== Code Block Syntax Colors ===== */
+    .code-block .kw { color: #C792EA; }
+    .code-block .str { color: #C3E88D; }
+    .code-block .num { color: #F78C6C; }
+    .code-block .cmt { color: #546E7A; font-style: italic; }
+    .code-block .fn { color: #82AAFF; }
+    .code-block .op { color: #89DDFF; }
+    .code-block .var { color: #EEFFFF; }
+
+    /* ===== KBD Badge ===== */
+    kbd { display: inline-flex; align-items: center; gap: 2px; padding: 1px 5px; font-family: 'Fira Code', monospace; font-size: 0.6875rem; background: var(--color-bg-hover); border: 1px solid var(--color-border); border-radius: var(--radius-sm); color: var(--color-text-tertiary); line-height: 1.4; }
+
+    /* ===== SVG Icon Utility ===== */
+    .icon { width: 16px; height: 16px; flex-shrink: 0; vertical-align: middle; }
+    .icon-sm { width: 14px; height: 14px; }
+    .icon-xs { width: 12px; height: 12px; }
+    .icon.inline { display: inline-block; vertical-align: -2px; }
+
+    /* ===== JS-rendered Project Items ===== */
+    .project-item { display: block; padding: 8px 12px; cursor: pointer; border-left: 3px solid transparent; transition: background var(--transition-fast), border-color var(--transition-fast); }
+    .project-item:hover { background: var(--color-bg-hover); }
+    .project-item.active { background: var(--color-bg-active); border-left-color: var(--color-cta); }
+    .project-item .project-name { font-size: 0.8125rem; font-weight: 500; color: var(--color-text-primary); font-family: 'Fira Sans', sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .project-item .project-meta { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-size: 0.6875rem; color: var(--color-text-secondary); }
+    .project-item .meta-badge { display: inline-flex; align-items: center; gap: 3px; }
+    .project-item .meta-time { color: var(--color-text-tertiary); }
+
+    /* ===== JS-rendered Session Items ===== */
+    .session-item { display: block; padding: 10px 12px; margin-bottom: 4px; cursor: pointer; border-left: 3px solid transparent; border-radius: var(--radius-md); transition: background var(--transition-fast), border-color var(--transition-fast); position: relative; }
+    .session-item:hover { background: var(--color-bg-hover); }
+    .session-item.active { background: var(--color-bg-active); border-left-color: var(--color-cta); }
+    .session-item.live .live-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--color-cta); animation: pulse-green 2s infinite; }
+    .session-item .session-row-top { display: flex; align-items: center; gap: 8px; }
+    .session-item .session-date { font-size: 0.6875rem; font-family: 'Fira Code', monospace; color: var(--color-text-secondary); }
+    .session-item .session-preview { font-size: 0.8125rem; font-family: 'Fira Sans', sans-serif; color: var(--color-text-primary); margin-top: 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.5; }
+    .session-item .session-meta { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 0.6875rem; }
+    .session-item .meta-badge { display: inline-flex; align-items: center; gap: 3px; color: var(--color-text-tertiary); }
+    .session-item .session-actions { position: absolute; right: 8px; top: 8px; display: flex; gap: 2px; opacity: 0; transition: opacity var(--transition-fast); }
+    .session-item:hover .session-actions { opacity: 1; }
+    .session-item .session-checkbox { appearance: none; -webkit-appearance: none; width: 16px; height: 16px; border: 1.5px solid var(--color-border); border-radius: 3px; background: transparent; cursor: pointer; flex-shrink: 0; transition: background var(--transition-fast), border-color var(--transition-fast); }
+    .session-item .session-checkbox:checked { background: var(--color-cta); border-color: var(--color-cta); }
+
+    /* ===== JS-rendered Messages ===== */
+    .message { display: flex; gap: 12px; padding: 8px 0; }
+    .message-indent { margin-left: 40px; }
+    .message-avatar { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 0.75rem; font-weight: 600; font-family: 'Fira Code', monospace; color: white; }
+    .avatar-user { background: var(--color-msg-user); }
+    .avatar-assistant { background: var(--color-msg-assistant); }
+    .message-body { flex: 1; min-width: 0; }
+    .message-header { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+    .message-role { font-size: 0.6875rem; font-weight: 600; font-family: 'Fira Sans', sans-serif; }
+    .role-user { color: var(--color-msg-user); }
+    .role-assistant { color: var(--color-msg-assistant); }
+    .message-time { font-size: 0.6875rem; color: var(--color-text-tertiary); }
+    .message-content { font-size: 0.875rem; color: var(--color-text-primary); font-family: 'Fira Sans', sans-serif; line-height: 1.6; }
+    .message-content a { color: var(--color-accent-blue); text-decoration: underline; }
+    .message-content strong { font-weight: 600; }
+    .message-content code.inline-code { background: var(--color-bg-code); border: 1px solid var(--color-border-subtle); padding: 1px 4px; border-radius: var(--radius-sm); font-family: 'Fira Code', monospace; font-size: 0.8125rem; }
+    .message .btn-copy-msg { opacity: 0; transition: opacity var(--transition-fast); }
+    .message:hover .btn-copy-msg { opacity: 1; }
+
+    /* ===== JS-rendered Collapsible Blocks ===== */
+    .collapsible-block { margin: 6px 0; border-left: 2px solid var(--color-border-subtle); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; padding: 6px 10px; }
+    .thinking-block { border-left-color: var(--color-msg-thinking); background: rgba(168,85,247,0.05); }
+    .tool-use-block { border-left-color: var(--color-msg-tool-use); background: rgba(245,158,11,0.05); }
+    .tool-result-block { border-left-color: var(--color-msg-tool-result); background: rgba(139,92,246,0.05); }
+    .tool-result-block.error { border-left-color: var(--color-msg-error); background: rgba(239,68,68,0.05); }
+    .collapsible-header { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 0.8125rem; user-select: none; }
+    .collapsible-header:hover { color: var(--color-text-primary); }
+    .collapse-icon { font-size: 0.6875rem; color: var(--color-text-tertiary); width: 14px; text-align: center; flex-shrink: 0; }
+    .collapsible-label { font-size: 0.6875rem; font-family: 'Fira Sans', sans-serif; color: var(--color-text-secondary); }
+    .collapsible-preview { flex: 1; font-size: 0.6875rem; color: var(--color-text-tertiary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-left: 4px; }
+    .tool-name { font-family: 'Fira Code', monospace; font-weight: 500; color: var(--color-msg-tool-use); }
+    .result-status-icon { display: inline-flex; }
+    .result-status { font-size: 0.6875rem; font-family: 'Fira Sans', sans-serif; }
+    .result-status.success { color: var(--color-cta); }
+    .result-status.error { color: var(--color-msg-error); }
+    .thinking-content { font-size: 0.8125rem; font-style: italic; color: var(--color-text-secondary); line-height: 1.6; padding: 8px 0; }
+
+    /* ===== JS-rendered Code Blocks ===== */
+    .code-block { background: var(--color-bg-code); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-sm); overflow-x: auto; font-family: 'Fira Code', monospace; font-size: 0.8125rem; margin: 4px 0; }
+    .code-block code { display: block; padding: 8px 12px; color: var(--color-text-primary); white-space: pre; }
+    .code-block .code-header { display: flex; align-items: center; justify-content: space-between; padding: 4px 12px; border-bottom: 1px solid var(--color-border-subtle); }
+    .code-block .code-lang { font-size: 0.6875rem; color: var(--color-text-tertiary); }
+    .code-output.error code { color: var(--color-msg-error); }
+    .code-stderr code { color: var(--color-accent-amber); }
+    .tool-file-path { font-size: 0.8125rem; font-family: 'Fira Code', monospace; color: var(--color-text-secondary); display: flex; align-items: center; gap: 4px; padding: 4px 0; }
+    .diff-block { margin: 4px 0; }
+    .diff-old, .diff-new { font-size: 0.8125rem; }
+    .diff-old { background: rgba(239,68,68,0.1); }
+    .diff-new { background: rgba(34,197,94,0.1); }
+    .diff-label { font-weight: 700; padding: 0 4px; }
+
+    /* ===== JS-rendered System Message ===== */
+    .message-system { display: flex; align-items: center; gap: 12px; padding: 4px 0; }
+    .system-divider { font-size: 0.6875rem; color: var(--color-text-tertiary); font-family: 'Fira Sans', sans-serif; }
+
+    /* ===== JS-rendered Empty State ===== */
+    .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 16px; text-align: center; color: var(--color-text-tertiary); }
+    .empty-state .empty-icon { margin-bottom: 12px; }
+    .empty-state .empty-icon svg { color: var(--color-text-tertiary); }
+    .empty-state .empty-title { font-size: 0.875rem; font-family: 'Fira Sans', sans-serif; color: var(--color-text-secondary); }
+    .empty-state .empty-hint { font-size: 0.75rem; font-family: 'Fira Sans', sans-serif; color: var(--color-text-tertiary); margin-top: 4px; }
+
+    /* ===== JS-rendered Skeleton ===== */
+    .skeleton-item { padding: 10px 12px; }
+    .skeleton-line { height: 14px; background: linear-gradient(90deg, var(--color-bg-elevated) 25%, var(--color-bg-hover) 50%, var(--color-bg-elevated) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: var(--radius-sm); margin-bottom: 6px; }
+    .skeleton-line.skeleton-sm { height: 10px; }
+    .skeleton-line.skeleton-xs { height: 8px; }
+    .skeleton-avatar { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(90deg, var(--color-bg-elevated) 25%, var(--color-bg-hover) 50%, var(--color-bg-elevated) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; flex-shrink: 0; }
+    .skeleton-message { display: flex; gap: 12px; }
+    .skeleton-body { flex: 1; }
+
+    /* ===== JS-rendered Search Modal ===== */
+    .modal-overlay { position: fixed; inset: 0; z-index: 300; display: none; align-items: flex-start; justify-content: center; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); padding-top: 15vh; }
+    .modal-overlay.modal-show { display: flex; }
+    .modal-content { width: 100%; max-width: 600px; background: var(--color-bg-elevated); border: 1px solid var(--color-border); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); overflow: hidden; animation: modal-in 200ms ease; }
+    .search-modal-input-wrapper { display: flex; align-items: center; padding: 0 16px; height: 52px; border-bottom: 1px solid var(--color-border); }
+    .search-modal-input-wrapper .search-icon { color: var(--color-text-tertiary); margin-right: 12px; }
+    .search-modal-input { flex: 1; background: transparent; border: none; outline: none; font-size: 1rem; color: var(--color-text-primary); font-family: 'Fira Sans', sans-serif; }
+    .search-modal-input::placeholder { color: var(--color-text-tertiary); }
+    .search-modal-results { max-height: 400px; overflow-y: auto; padding: 8px 0; }
+    .search-loading, .search-no-results, .search-error { padding: 24px 16px; text-align: center; font-size: 0.8125rem; color: var(--color-text-secondary); font-family: 'Fira Sans', sans-serif; }
+    .search-meta { padding: 4px 16px; font-size: 0.6875rem; color: var(--color-text-tertiary); font-family: 'Fira Code', monospace; }
+    .search-group { margin-bottom: 8px; }
+    .search-group-header { display: flex; align-items: center; gap: 8px; padding: 4px 16px; font-size: 0.6875rem; }
+    .search-project-name { color: var(--color-cta); font-family: 'Fira Code', monospace; }
+    .search-session-id { color: var(--color-text-tertiary); font-family: 'Fira Code', monospace; }
+    .search-result-item { display: flex; align-items: center; gap: 8px; padding: 8px 16px; cursor: pointer; transition: background var(--transition-fast); }
+    .search-result-item:hover, .search-result-item.focused { background: var(--color-bg-hover); }
+    .search-result-role { width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.6875rem; font-weight: 600; color: white; flex-shrink: 0; }
+    .search-result-role.role-user { background: var(--color-msg-user); }
+    .search-result-role.role-assistant { background: var(--color-msg-assistant); }
+    .search-result-snippet { flex: 1; font-size: 0.8125rem; color: var(--color-text-primary); font-family: 'Fira Sans', sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .search-result-snippet mark { background: var(--color-cta-muted); color: inherit; border-radius: 2px; padding: 0 2px; }
+    .search-result-time { font-size: 0.6875rem; color: var(--color-text-tertiary); font-family: 'Fira Code', monospace; flex-shrink: 0; }
+
+    /* ===== JS-rendered Button Styles ===== */
+    .btn-icon { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: var(--radius-md); border: none; background: transparent; color: var(--color-text-secondary); cursor: pointer; transition: background var(--transition-fast), color var(--transition-fast); }
+    .btn-icon:hover { background: var(--color-bg-hover); color: var(--color-text-primary); }
+    .btn-show-more { display: inline-block; margin-top: 4px; font-size: 0.75rem; color: var(--color-cta); cursor: pointer; background: none; border: none; font-family: 'Fira Sans', sans-serif; }
+    .btn-show-more:hover { color: var(--color-cta-hover); }
+
+    /* ===== JS-rendered Badges ===== */
+    .meta-badge { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border-radius: var(--radius-full); font-size: 0.6875rem; font-family: 'Fira Code', monospace; color: var(--color-text-tertiary); background: var(--color-bg-hover); white-space: nowrap; }
+    .meta-model-sm { font-size: 0.625rem; }
+    .session-id-badge { font-family: 'Fira Code', monospace; font-size: 0.8125rem; color: var(--color-cta); }
+
+    /* ===== JS-rendered Connection Indicator ===== */
+    .connection-indicator { display: flex; align-items: center; gap: 6px; font-size: 0.6875rem; font-family: 'Fira Code', monospace; }
+    .connection-dot { width: 6px; height: 6px; border-radius: 50%; }
+    .connection-indicator.connected .connection-dot { background: var(--color-cta); }
+    .connection-indicator.disconnected .connection-dot { background: var(--color-msg-error); }
+    .connection-indicator.reconnecting .connection-dot { background: var(--color-accent-amber); animation: pulse-green 2s infinite; }
+
+    /* ===== JS-rendered Toast Styles ===== */
+    .toast-success .toast-icon { color: var(--color-cta); }
+    .toast-error .toast-icon { color: var(--color-msg-error); }
+    .toast-info .toast-icon { color: var(--color-accent-blue); }
+    .toast-show { opacity: 1; }
+    .toast-hide { opacity: 0; transition: opacity 300ms; }
+
+    /* ===== JS-rendered New Messages Badge ===== */
+    .new-messages-badge { position: absolute; bottom: 48px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 4px; padding: 4px 12px; background: var(--color-cta); color: var(--color-bg); font-size: 0.75rem; font-family: 'Fira Sans', sans-serif; border-radius: var(--radius-full); cursor: pointer; box-shadow: var(--shadow-md); z-index: 10; }
+
+    /* ===== Compact Summary ===== */
+    .message.compact-summary { opacity: 0.7; }
+
+    /* ===== Highlight Flash for search navigation ===== */
+    .message.highlight-flash { animation: highlight-flash 1s ease-out; }
+
+    /* ===== Badge ===== */
+    .badge { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border-radius: var(--radius-full); font-size: 0.6875rem; font-family: 'Fira Code', monospace; white-space: nowrap; }
+
+    /* ===== Action Buttons (hover reveal) ===== */
+    .hover-actions { opacity: 0; transition: opacity var(--transition-fast); pointer-events: none; }
+    .group:hover .hover-actions, .panel-item:hover .hover-actions { opacity: 1; pointer-events: auto; }
+
+    /* ===== Icon Button ===== */
+    .icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: var(--radius-md); border: none; background: transparent; color: var(--color-text-secondary); cursor: pointer; transition: background var(--transition-fast), color var(--transition-fast); }
+    .icon-btn:hover { background: var(--color-bg-hover); color: var(--color-text-primary); }
+
+    /* ===== Checkbox ===== */
+    .custom-checkbox { appearance: none; -webkit-appearance: none; width: 16px; height: 16px; border: 1.5px solid var(--color-border); border-radius: 3px; background: transparent; cursor: pointer; position: relative; flex-shrink: 0; transition: background var(--transition-fast), border-color var(--transition-fast); }
+    .custom-checkbox:checked { background: var(--color-cta); border-color: var(--color-cta); }
+    .custom-checkbox:checked::after { content: ''; position: absolute; left: 4.5px; top: 1.5px; width: 4px; height: 8px; border: solid var(--color-bg); border-width: 0 2px 2px 0; transform: rotate(45deg); }
+
+    /* ===== Focused Panel Top Bar ===== */
+    .panel-focused { border-top: 2px solid var(--color-cta); }
+
+    /* ===== Responsive ===== */
+    @media (max-width: 1200px) {
+      #panel-projects { display: none; }
+      #resize-handle-1 { display: none; }
+      #btn-toggle-projects { display: inline-flex !important; }
+      .project-overlay { display: block !important; }
+    }
+    @media (max-width: 768px) {
+      #panel-sessions, #resize-handle-2, #panel-detail { display: none; }
+      #resize-handle-1 { display: none; }
+      .mobile-active { display: flex !important; }
+      #status-bar { display: none; }
+      #btn-mobile-back { display: inline-flex !important; }
+    }
+  </style>
+</head>
+
+<body class="bg-bg text-text-primary">
+  <!-- ===== Skip to Content ===== -->
+  <a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[999] focus:bg-cta focus:text-text-inverse focus:px-3 focus:py-1 focus:rounded-md">
+    跳转到主要内容
+  </a>
+
+  <div id="app" class="flex flex-col h-screen w-screen overflow-hidden">
+
+    <!-- ========== HEADER ========== -->
+    <header id="app-header" role="banner" aria-label="CC LOG 顶部导航" class="flex items-center justify-between px-4 border-b border-border flex-shrink-0 z-header" style="height:var(--header-height);background:var(--color-bg-header);">
+
+      <!-- Left: Logo -->
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <button id="btn-toggle-projects" class="icon-btn hidden" aria-label="切换项目面板" data-action="toggle-projects">
+          <i data-lucide="menu" class="w-5 h-5"></i>
+        </button>
+        <button id="btn-mobile-back" class="icon-btn hidden" aria-label="返回" data-action="mobile-back">
+          <i data-lucide="arrow-left" class="w-5 h-5"></i>
+        </button>
+        <div class="flex items-center gap-2 cursor-default">
+          <i data-lucide="terminal" class="w-5 h-5 text-cta"></i>
+          <span class="font-mono text-base font-bold text-text-primary tracking-wide">CC LOG</span>
+        </div>
+      </div>
+
+      <!-- Center: Global Search -->
+      <div id="global-search-trigger" class="relative flex-1 max-w-[400px] mx-4" data-action="open-search">
+        <div class="flex items-center h-8 px-3 rounded-md border border-border bg-bg-input cursor-pointer hover:border-text-tertiary transition-colors" tabindex="0" role="button" aria-label="搜索所有项目、会话和消息 (Cmd+K)">
+          <i data-lucide="search" class="w-3.5 h-3.5 text-text-tertiary mr-2 flex-shrink-0"></i>
+          <span class="text-xs text-text-tertiary flex-1">搜索项目、会话、消息...</span>
+          <kbd>⌘K</kbd>
+        </div>
+      </div>
+
+      <!-- Right: Actions -->
+      <div class="flex items-center gap-1 flex-shrink-0">
+        <button class="icon-btn" aria-label="设置" data-action="open-settings">
+          <i data-lucide="settings" class="w-4 h-4"></i>
+        </button>
+        <div id="header-connection-dot" class="w-2 h-2 rounded-full bg-accent-red ml-2" title="未连接" data-status="disconnected"></div>
+      </div>
+    </header>
+
+    <!-- ========== MAIN CONTENT (Three Panels) ========== -->
+    <main id="main-content" role="main" class="flex flex-1 overflow-hidden" style="height:calc(100vh - var(--header-height) - var(--status-bar-height));">
+
+      <!-- ===== PROJECT PANEL (Left) ===== -->
+      <aside id="panel-projects" role="complementary" aria-label="项目面板" class="flex flex-col bg-bg-elevated border-r border-border overflow-hidden flex-shrink-0" style="width:var(--panel-project-width);min-width:200px;max-width:400px;" data-panel="projects">
+
+        <!-- Panel Header -->
+        <div class="flex items-center justify-between px-3 py-2 border-b border-border-subtle flex-shrink-0">
+          <span class="text-xs font-semibold text-text-secondary uppercase tracking-wider font-sans">项目</span>
+          <span id="project-count-badge" class="badge bg-bg-hover text-text-tertiary">0</span>
+        </div>
+
+        <!-- Project Search / Filter -->
+        <div class="px-3 py-2 flex-shrink-0">
+          <div class="relative">
+            <i data-lucide="search" class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-tertiary pointer-events-none"></i>
+            <input id="project-filter" type="text" placeholder="筛选项目..." class="w-full h-8 pl-8 pr-8 text-xs rounded-md border border-border-subtle bg-bg-input text-text-primary placeholder:text-text-tertiary focus:border-border-focus focus:outline-none transition-colors" data-input="project-filter" aria-label="筛选项目">
+            <button id="project-filter-clear" class="icon-btn absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 hidden" aria-label="清除筛选" data-action="clear-project-filter">
+              <i data-lucide="x" class="w-3 h-3"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Project List -->
+        <div id="project-list" class="flex-1 overflow-y-auto" role="listbox" aria-label="项目列表" data-list="projects">
+          <!-- Dynamic content rendered by app.js -->
+        </div>
+
+        <!-- Project Empty State (hidden by default) -->
+        <div id="project-empty" class="hidden flex-1 flex flex-col items-center justify-center px-4 text-center">
+          <i data-lucide="folder-open" class="w-12 h-12 text-text-tertiary mb-3"></i>
+          <p class="text-sm text-text-secondary font-sans">未找到项目</p>
+          <p class="text-2xs text-text-tertiary mt-1 font-sans">CC LOG 读取 ~/.claude/projects/ 目录</p>
+        </div>
+      </aside>
+
+      <!-- Resize Handle 1 -->
+      <div id="resize-handle-1" class="resize-handle" data-panels="project,session" role="separator" aria-label="调整项目和会话面板宽度"></div>
+
+      <!-- ===== SESSION PANEL (Middle) ===== -->
+      <section id="panel-sessions" role="region" aria-label="会话面板" class="flex flex-col bg-bg-elevated border-r border-border overflow-hidden flex-shrink-0" style="width:var(--panel-session-width);min-width:280px;max-width:500px;" data-panel="sessions">
+
+        <!-- Session Panel Header -->
+        <div class="flex items-center justify-between px-3 py-2 border-b border-border-subtle flex-shrink-0">
+          <div class="flex items-center gap-2 min-w-0">
+            <span id="session-project-name" class="text-xs font-mono text-cta truncate">cc-log</span>
+            <span class="text-2xs text-text-tertiary">|</span>
+            <span class="text-xs text-text-secondary font-sans">会话</span>
+          </div>
+          <div class="flex items-center gap-1">
+            <!-- Batch Select Toggle -->
+            <button id="btn-batch-toggle" class="icon-btn" aria-label="批量选择" data-action="batch-toggle" title="批量选择">
+              <i data-lucide="check-square" class="w-3.5 h-3.5"></i>
+            </button>
+            <!-- Sort Control -->
+            <div class="relative">
+              <button id="btn-sort" class="icon-btn" aria-label="排序" data-action="toggle-sort" title="排序">
+                <i data-lucide="arrow-up-down" class="w-3.5 h-3.5"></i>
+              </button>
+              <!-- Sort Dropdown -->
+              <div id="sort-dropdown" class="hidden absolute right-0 top-full mt-1 w-40 bg-bg-elevated border border-border rounded-md shadow-lg z-dropdown py-1" role="menu">
+                <button class="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-bg-hover transition-colors font-sans" role="menuitem" data-sort="date-desc">最近优先</button>
+                <button class="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-bg-hover transition-colors font-sans" role="menuitem" data-sort="date-asc">最早优先</button>
+                <button class="w-full text-left px-3 py-1.5 text-xs text-text-primary hover:bg-bg-hover transition-colors font-sans" role="menuitem" data-sort="messages">消息最多</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Batch Action Bar (hidden by default) -->
+        <div id="batch-action-bar" class="hidden items-center justify-between px-3 py-1.5 bg-bg border-b border-border-subtle flex-shrink-0">
+          <div class="flex items-center gap-2">
+            <button class="text-2xs text-cta hover:text-cta-hover cursor-pointer font-sans transition-colors" data-action="select-all">全选</button>
+            <span class="text-2xs text-text-tertiary">|</span>
+            <button class="text-2xs text-text-secondary hover:text-text-primary cursor-pointer font-sans transition-colors" data-action="deselect-all">取消全选</button>
+            <span id="batch-count" class="text-2xs text-text-tertiary font-mono">0 已选</span>
+          </div>
+          <button class="flex items-center gap-1 px-2 py-1 rounded-md text-2xs font-sans bg-cta text-text-inverse hover:bg-cta-hover transition-colors cursor-pointer" data-action="batch-export">
+            <i data-lucide="download" class="w-3 h-3"></i> 批量导出
+          </button>
+        </div>
+
+        <!-- Session Search -->
+        <div class="px-3 py-2 flex-shrink-0">
+          <div class="relative">
+            <i data-lucide="search" class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-tertiary pointer-events-none"></i>
+            <input id="session-filter" type="text" placeholder="搜索会话..." class="w-full h-8 pl-8 pr-8 text-xs rounded-md border border-border-subtle bg-bg-input text-text-primary placeholder:text-text-tertiary focus:border-border-focus focus:outline-none transition-colors" data-input="session-filter" aria-label="搜索会话">
+            <button id="session-filter-clear" class="icon-btn absolute right-1 top-1/2 -translate-y-1/2 w-6 h-6 hidden" aria-label="清除搜索" data-action="clear-session-filter">
+              <i data-lucide="x" class="w-3 h-3"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Session List -->
+        <div id="session-list" class="flex-1 overflow-y-auto px-2 py-1" role="listbox" aria-label="会话列表" data-list="sessions">
+          <!-- Dynamic content rendered by app.js -->
+        </div>
+
+        <!-- Session Empty State (hidden) -->
+        <div id="session-empty" class="hidden flex-1 flex flex-col items-center justify-center px-4 text-center">
+          <i data-lucide="arrow-left" class="w-12 h-12 text-text-tertiary mb-3"></i>
+          <p class="text-sm text-text-secondary font-sans">请选择一个项目</p>
+          <p class="text-2xs text-text-tertiary mt-1 font-sans">从左侧面板中选择项目以查看其会话</p>
+        </div>
+
+        <!-- Session Loading Skeleton (hidden) -->
+        <div id="session-loading" class="hidden flex-1 px-3 py-2 space-y-3">
+          <div class="rounded-lg p-3 space-y-2">
+            <div class="skeleton h-3 w-32"></div>
+            <div class="skeleton h-4 w-full"></div>
+            <div class="skeleton h-4 w-3/4"></div>
+            <div class="skeleton h-3 w-24"></div>
+          </div>
+          <div class="rounded-lg p-3 space-y-2">
+            <div class="skeleton h-3 w-32"></div>
+            <div class="skeleton h-4 w-full"></div>
+            <div class="skeleton h-4 w-2/3"></div>
+            <div class="skeleton h-3 w-24"></div>
+          </div>
+          <div class="rounded-lg p-3 space-y-2">
+            <div class="skeleton h-3 w-32"></div>
+            <div class="skeleton h-4 w-full"></div>
+            <div class="skeleton h-3 w-24"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Resize Handle 2 -->
+      <div id="resize-handle-2" class="resize-handle" data-panels="session,detail" role="separator" aria-label="调整会话和详情面板宽度"></div>
+
+      <!-- ===== DETAIL PANEL (Right) ===== -->
+      <section id="panel-detail" role="region" aria-label="对话详情面板" class="flex flex-col flex-1 overflow-hidden" style="min-width:400px;background:var(--color-bg);" data-panel="detail">
+
+        <!-- Detail Header -->
+        <div id="detail-header" class="flex items-center justify-between px-4 py-2.5 border-b border-border flex-shrink-0" style="min-height:52px;">
+          <div class="flex items-center gap-3 min-w-0">
+            <span class="text-xs font-mono text-cta">6be09dbe</span>
+            <span class="text-2xs text-text-tertiary font-sans">2026年1月14日 15:43 - 16:12</span>
+          </div>
+          <div class="flex items-center gap-1">
+            <button class="icon-btn" title="在会话中搜索" aria-label="在会话中搜索" data-action="search-in-session">
+              <i data-lucide="search" class="w-3.5 h-3.5"></i>
+            </button>
+            <button class="icon-btn" title="复制会话ID" aria-label="复制会话ID" data-action="copy-session-id">
+              <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+            </button>
+            <button class="icon-btn" title="导出会话" aria-label="导出会话" data-action="export-detail">
+              <i data-lucide="download" class="w-3.5 h-3.5"></i>
+            </button>
+            <button class="icon-btn" title="分享会话" aria-label="分享会话" data-action="share-session">
+              <i data-lucide="share-2" class="w-3.5 h-3.5"></i>
+            </button>
+            <div class="w-px h-4 bg-border mx-1"></div>
+            <button class="text-2xs text-text-secondary hover:text-text-primary cursor-pointer font-sans transition-colors px-1" data-action="expand-all">全部展开</button>
+            <button class="text-2xs text-text-secondary hover:text-text-primary cursor-pointer font-sans transition-colors px-1" data-action="collapse-all">全部折叠</button>
+          </div>
+        </div>
+
+        <!-- In-session Search Bar (hidden by default) -->
+        <div id="session-search-bar" class="hidden items-center px-4 py-2 border-b border-border-subtle bg-bg-elevated flex-shrink-0 gap-2">
+          <i data-lucide="search" class="w-3.5 h-3.5 text-text-tertiary flex-shrink-0"></i>
+          <input id="session-search-input" type="text" placeholder="在当前会话中搜索..." class="flex-1 h-7 px-2 text-xs rounded-md border border-border-subtle bg-bg-input text-text-primary placeholder:text-text-tertiary focus:border-border-focus focus:outline-none" data-input="session-search">
+          <span id="session-search-count" class="text-2xs text-text-tertiary font-mono whitespace-nowrap">0/0</span>
+          <button class="icon-btn w-6 h-6" data-action="search-prev" title="上一个匹配"><i data-lucide="chevron-up" class="w-3 h-3"></i></button>
+          <button class="icon-btn w-6 h-6" data-action="search-next" title="下一个匹配"><i data-lucide="chevron-down" class="w-3 h-3"></i></button>
+          <button class="icon-btn w-6 h-6" data-action="close-session-search" title="关闭搜索"><i data-lucide="x" class="w-3 h-3"></i></button>
+        </div>
+
+        <!-- Message List -->
+        <div id="message-list" class="flex-1 overflow-y-auto px-4 py-4 space-y-4" data-list="messages" style="scroll-behavior:smooth;">
+          <!-- Dynamic content rendered by app.js -->
+        </div>
+
+        <!-- Detail Footer -->
+        <div id="detail-footer" class="flex items-center justify-between px-4 py-1.5 border-t border-border flex-shrink-0">
+          <span class="flex items-center gap-1 text-2xs text-text-tertiary font-mono">
+            <i data-lucide="message-square" class="w-3 h-3"></i> 47 条消息
+          </span>
+          <span class="text-2xs text-text-tertiary font-sans">2026年1月14日 15:43 - 16:12</span>
+        </div>
+
+        <!-- Scroll to Bottom Button (floating) -->
+        <button id="scroll-to-bottom" class="hidden absolute bottom-16 right-8 w-8 h-8 rounded-full bg-bg-elevated border border-border shadow-md flex items-center justify-center cursor-pointer hover:bg-bg-hover transition-colors z-panel" data-action="scroll-to-bottom" title="滚动到底部">
+          <i data-lucide="chevron-down" class="w-4 h-4 text-text-secondary"></i>
+        </button>
+
+        <!-- Detail Empty State (hidden) -->
+        <div id="detail-empty" class="hidden flex-1 flex flex-col items-center justify-center px-4 text-center">
+          <i data-lucide="message-square-off" class="w-12 h-12 text-text-tertiary mb-3"></i>
+          <p class="text-sm text-text-secondary font-sans">请选择一个会话</p>
+          <p class="text-2xs text-text-tertiary mt-1 font-sans">从中间面板中选择会话以查看对话内容</p>
+        </div>
+
+        <!-- Detail Loading Skeleton (hidden) -->
+        <div id="detail-loading" class="hidden flex-1 px-4 py-4 space-y-4">
+          <div class="flex gap-3">
+            <div class="skeleton w-7 h-7 rounded-full flex-shrink-0"></div>
+            <div class="flex-1 space-y-2">
+              <div class="skeleton h-3 w-20"></div>
+              <div class="skeleton h-4 w-full"></div>
+              <div class="skeleton h-4 w-2/3"></div>
+            </div>
+          </div>
+          <div class="flex gap-3">
+            <div class="skeleton w-7 h-7 rounded-full flex-shrink-0"></div>
+            <div class="flex-1 space-y-2">
+              <div class="skeleton h-3 w-16"></div>
+              <div class="skeleton h-4 w-full"></div>
+              <div class="skeleton h-4 w-full"></div>
+              <div class="skeleton h-4 w-1/2"></div>
+            </div>
+          </div>
+          <div class="ml-10 space-y-2">
+            <div class="skeleton h-3 w-32"></div>
+            <div class="skeleton h-16 w-full rounded-md"></div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- ========== STATUS BAR ========== -->
+    <footer id="status-bar" role="contentinfo" aria-label="状态栏" aria-live="polite" class="flex items-center justify-between px-4 border-t border-border flex-shrink-0 font-mono text-2xs z-header" style="height:var(--status-bar-height);background:var(--color-bg-status);color:var(--color-text-tertiary);">
+
+      <!-- Left: Connection -->
+      <div class="flex items-center gap-2" data-ws-status>
+        <span id="status-dot" class="w-1.5 h-1.5 rounded-full bg-accent-red" data-status="disconnected"></span>
+        <span id="status-text">已断开</span>
+      </div>
+
+      <!-- Center: Stats -->
+      <div class="flex items-center gap-2">
+        <span id="stat-projects">4 个项目</span>
+        <span class="text-text-tertiary">|</span>
+        <span id="stat-sessions">28 个会话</span>
+      </div>
+
+      <!-- Right: Version -->
+      <div>
+        <span id="version-badge">v1.0.0</span>
+      </div>
+    </footer>
+
+  </div>
+
+  <!-- ========== MODALS ========== -->
+
+  <!-- Search Modal (Cmd+K) -->
+  <div id="modal-search" class="hidden fixed inset-0 z-modal" role="dialog" aria-modal="true" aria-label="全局搜索">
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" data-action="close-search-modal"></div>
+    <div class="relative mx-auto mt-[15vh] w-full max-w-[600px] bg-bg-elevated border border-border rounded-lg shadow-lg animate-modal-in overflow-hidden">
+      <!-- Search Input -->
+      <div class="flex items-center px-4 border-b border-border" style="height:52px;">
+        <i data-lucide="search" class="w-5 h-5 text-text-tertiary mr-3 flex-shrink-0"></i>
+        <input id="modal-search-input" type="text" placeholder="搜索所有内容..." class="flex-1 bg-transparent text-base text-text-primary placeholder:text-text-tertiary focus:outline-none font-sans" autofocus data-input="global-search">
+        <kbd class="ml-3">Esc</kbd>
+      </div>
+      <!-- Search Results -->
+      <div id="modal-search-results" class="max-h-[400px] overflow-y-auto py-2">
+        <!-- Projects group -->
+        <div class="px-3 py-1.5">
+          <span class="text-2xs font-semibold text-text-tertiary uppercase tracking-wider font-sans">项目</span>
+        </div>
+        <div class="px-2">
+          <button class="w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-bg-hover transition-colors cursor-pointer text-left" data-search-result="project">
+            <i data-lucide="folder-git-2" class="w-4 h-4 text-text-tertiary flex-shrink-0"></i>
+            <span class="text-xs text-text-primary font-sans">cc-log</span>
+          </button>
+        </div>
+        <!-- Sessions group -->
+        <div class="px-3 py-1.5 mt-2">
+          <span class="text-2xs font-semibold text-text-tertiary uppercase tracking-wider font-sans">会话</span>
+        </div>
+        <div class="px-2">
+          <button class="w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-bg-hover transition-colors cursor-pointer text-left" data-search-result="session">
+            <i data-lucide="clock" class="w-4 h-4 text-text-tertiary flex-shrink-0"></i>
+            <div class="flex-1 min-w-0">
+              <span class="text-xs text-text-primary font-sans">1月14日 - "设计 UI 架构..."</span>
+            </div>
+          </button>
+        </div>
+        <!-- Messages group -->
+        <div class="px-3 py-1.5 mt-2">
+          <span class="text-2xs font-semibold text-text-tertiary uppercase tracking-wider font-sans">消息</span>
+        </div>
+        <div class="px-2">
+          <button class="w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-bg-hover transition-colors cursor-pointer text-left" data-search-result="message">
+            <i data-lucide="message-square" class="w-4 h-4 text-text-tertiary flex-shrink-0"></i>
+            <div class="flex-1 min-w-0">
+              <span class="text-xs text-text-primary font-sans">...组件<mark class="bg-cta-muted text-inherit rounded-sm px-0.5">架构</mark>和线框图...</span>
+            </div>
+          </button>
+        </div>
+        <!-- Empty search state -->
+        <div id="search-empty" class="hidden py-8 text-center">
+          <i data-lucide="search-x" class="w-8 h-8 text-text-tertiary mx-auto mb-2"></i>
+          <p class="text-xs text-text-secondary font-sans">未找到匹配结果</p>
+        </div>
+      </div>
+      <!-- Footer Hints -->
+      <div class="flex items-center justify-center gap-4 px-4 py-2 border-t border-border-subtle text-2xs text-text-tertiary">
+        <span><kbd>↑↓</kbd> 导航</span>
+        <span><kbd>Enter</kbd> 选择</span>
+        <span><kbd>Esc</kbd> 关闭</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Export Modal -->
+  <div id="modal-export" class="hidden fixed inset-0 z-modal" role="dialog" aria-modal="true" aria-label="导出选项">
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" data-action="close-export-modal"></div>
+    <div class="relative mx-auto mt-[25vh] w-full max-w-[400px] bg-bg-elevated border border-border rounded-lg shadow-lg animate-modal-in overflow-hidden">
+      <div class="flex items-center justify-between px-4 py-3 border-b border-border">
+        <h2 class="text-sm font-semibold text-text-primary font-sans">导出会话</h2>
+        <button class="icon-btn" data-action="close-export-modal" aria-label="关闭">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+      <div class="p-4 space-y-2">
+        <button class="w-full flex items-center gap-3 px-4 py-3 rounded-lg border border-border hover:border-cta hover:bg-cta-muted transition-colors cursor-pointer" data-export-format="json">
+          <i data-lucide="braces" class="w-5 h-5 text-accent-blue"></i>
+          <div class="text-left">
+            <div class="text-xs font-medium text-text-primary font-sans">JSON 格式</div>
+            <div class="text-2xs text-text-secondary font-sans">原始 JSONL 数据</div>
+          </div>
+        </button>
+        <button class="w-full flex items-center gap-3 px-4 py-3 rounded-lg border border-border hover:border-cta hover:bg-cta-muted transition-colors cursor-pointer" data-export-format="markdown">
+          <i data-lucide="file-text" class="w-5 h-5 text-accent-purple"></i>
+          <div class="text-left">
+            <div class="text-xs font-medium text-text-primary font-sans">Markdown 格式</div>
+            <div class="text-2xs text-text-secondary font-sans">格式化的对话文本</div>
+          </div>
+        </button>
+        <button class="w-full flex items-center gap-3 px-4 py-3 rounded-lg border border-border hover:border-cta hover:bg-cta-muted transition-colors cursor-pointer" data-export-format="html">
+          <i data-lucide="globe" class="w-5 h-5 text-cta"></i>
+          <div class="text-left">
+            <div class="text-xs font-medium text-text-primary font-sans">HTML 格式</div>
+            <div class="text-2xs text-text-secondary font-sans">独立可分享的网页文件</div>
+          </div>
+        </button>
+      </div>
+      <div class="px-4 py-3 border-t border-border-subtle">
+        <p class="text-2xs text-text-tertiary font-sans text-center">文件将保存到下载目录</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Share Preview Modal -->
+  <div id="modal-share" class="hidden fixed inset-0 z-modal" role="dialog" aria-modal="true" aria-label="分享预览">
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" data-action="close-share-modal"></div>
+    <div class="relative mx-auto mt-[15vh] w-full max-w-[500px] bg-bg-elevated border border-border rounded-lg shadow-lg animate-modal-in overflow-hidden">
+      <div class="flex items-center justify-between px-4 py-3 border-b border-border">
+        <h2 class="text-sm font-semibold text-text-primary font-sans">分享会话</h2>
+        <button class="icon-btn" data-action="close-share-modal" aria-label="关闭">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+      <div class="p-4">
+        <p class="text-xs text-text-secondary font-sans mb-3">生成一个独立的 HTML 文件，无需服务器即可在任何浏览器中查看。</p>
+        <div class="rounded-lg border border-border p-3 mb-4" style="background:var(--color-bg-code);">
+          <div class="flex items-center gap-2 mb-2">
+            <i data-lucide="file-code" class="w-4 h-4 text-cta"></i>
+            <span class="text-xs font-mono text-text-primary">cc-log_6be09dbe_2026-01-14.html</span>
+          </div>
+          <p class="text-2xs text-text-tertiary font-sans">包含完整样式和对话内容的自包含 HTML 文件</p>
+        </div>
+        <div class="flex justify-end gap-2">
+          <button class="px-3 py-1.5 rounded-md text-xs font-sans text-text-secondary border border-border hover:bg-bg-hover transition-colors cursor-pointer" data-action="close-share-modal">取消</button>
+          <button class="px-3 py-1.5 rounded-md text-xs font-sans bg-cta text-text-inverse hover:bg-cta-hover transition-colors cursor-pointer" data-action="generate-share">生成并下载</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== TOAST CONTAINER ========== -->
+  <div id="toast-container" class="fixed bottom-12 right-4 z-toast flex flex-col gap-2 pointer-events-none" aria-live="polite">
+    <!-- Sample Toast (for demo) -->
+    <div class="toast pointer-events-auto flex items-center gap-2 px-4 py-2.5 rounded-lg shadow-md min-w-[250px] max-w-[400px]" style="background:var(--color-bg-elevated);border:1px solid var(--color-border);" data-toast>
+      <i data-lucide="check-circle-2" class="w-4 h-4 text-cta flex-shrink-0"></i>
+      <span class="text-xs text-text-primary font-sans flex-1">已复制到剪贴板</span>
+      <button class="icon-btn w-5 h-5 flex-shrink-0" data-action="dismiss-toast" aria-label="关闭通知">
+        <i data-lucide="x" class="w-3 h-3"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- ========== TEMPLATES ========== -->
+
+  <!-- User Message Template -->
+  <template id="tpl-msg-user">
+    <div class="flex gap-3 group animate-message-in" data-message-type="user" data-message-id="">
+      <div class="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center" style="background:var(--color-msg-user);">
+        <i data-lucide="user" class="w-3.5 h-3.5 text-white"></i>
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="text-2xs font-semibold font-sans" style="color:var(--color-msg-user);">你</span>
+          <span class="text-2xs text-text-tertiary" data-slot="timestamp"></span>
+          <div class="hover-actions ml-auto">
+            <button class="icon-btn w-6 h-6" title="复制消息" data-action="copy-message"><i data-lucide="copy" class="w-3 h-3"></i></button>
+          </div>
+        </div>
+        <div class="text-sm text-text-primary font-sans leading-relaxed" data-slot="content"></div>
+      </div>
+    </div>
+  </template>
+
+  <!-- Assistant Message Template -->
+  <template id="tpl-msg-assistant">
+    <div class="flex gap-3 group animate-message-in" data-message-type="assistant" data-message-id="">
+      <div class="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center" style="background:var(--color-msg-assistant);">
+        <i data-lucide="bot" class="w-3.5 h-3.5 text-white"></i>
+      </div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="text-2xs font-semibold font-sans" style="color:var(--color-msg-assistant);">Claude</span>
+          <span class="text-2xs text-text-tertiary" data-slot="timestamp"></span>
+          <div class="hover-actions ml-auto">
+            <button class="icon-btn w-6 h-6" title="复制消息" data-action="copy-message"><i data-lucide="copy" class="w-3 h-3"></i></button>
+          </div>
+        </div>
+        <div data-slot="thinking"></div>
+        <div class="text-sm text-text-primary font-sans leading-relaxed" data-slot="content"></div>
+      </div>
+    </div>
+  </template>
+
+  <!-- Thinking Block Template -->
+  <template id="tpl-thinking-block">
+    <div class="mb-2" data-thinking-block>
+      <button class="collapse-toggle flex items-center gap-1.5 cursor-pointer text-2xs py-1 transition-colors hover:text-text-primary" style="color:var(--color-msg-thinking);" data-action="toggle-thinking" aria-expanded="false">
+        <i data-lucide="chevron-right" class="w-3 h-3 chevron-icon"></i>
+        <i data-lucide="brain" class="w-3 h-3"></i>
+        <span class="font-sans">思考中...</span>
+      </button>
+      <div class="collapsible-content collapsed ml-5 mt-1 pl-3 py-2 rounded-r-md" style="border-left:2px solid var(--color-msg-thinking);background:rgba(168,85,247,0.08);">
+        <p class="text-xs text-text-secondary italic font-sans leading-relaxed" data-slot="thinking-content"></p>
+      </div>
+    </div>
+  </template>
+
+  <!-- Tool Use Template -->
+  <template id="tpl-msg-tool-use">
+    <div class="ml-10 animate-message-in" data-message-type="tool_use" data-message-id="">
+      <div class="rounded-r-md py-2 px-3" style="border-left:2px solid var(--color-msg-tool-use);background:rgba(245,158,11,0.05);">
+        <button class="collapse-toggle flex items-center gap-2 w-full cursor-pointer" data-action="toggle-tool" aria-expanded="false">
+          <i data-lucide="chevron-right" class="w-3 h-3 chevron-icon" style="color:var(--color-msg-tool-use);"></i>
+          <i data-lucide="wrench" class="w-3.5 h-3.5 flex-shrink-0" style="color:var(--color-msg-tool-use);"></i>
+          <span class="text-xs font-mono font-medium" style="color:var(--color-msg-tool-use);" data-slot="tool-name"></span>
+          <span class="badge bg-bg-hover text-text-tertiary ml-1">工具调用</span>
+          <span class="text-2xs text-text-secondary truncate ml-2 font-mono flex-1 text-left" data-slot="tool-preview"></span>
+          <div class="hover-actions flex items-center gap-0.5 ml-auto">
+            <button class="icon-btn w-6 h-6" title="复制" data-action="copy-tool-input"><i data-lucide="copy" class="w-3 h-3"></i></button>
+          </div>
+        </button>
+        <div class="collapsible-content collapsed mt-2" data-slot="tool-content"></div>
+      </div>
+    </div>
+  </template>
+
+  <!-- Tool Result Template -->
+  <template id="tpl-msg-tool-result">
+    <div class="ml-10 animate-message-in" data-message-type="tool_result" data-message-id="">
+      <div class="rounded-r-md py-2 px-3" data-slot="result-container">
+        <button class="collapse-toggle flex items-center gap-2 w-full cursor-pointer" data-action="toggle-tool" aria-expanded="false">
+          <i data-lucide="chevron-right" class="w-3 h-3 chevron-icon" data-slot="result-chevron"></i>
+          <i data-slot="result-icon" class="w-3.5 h-3.5 flex-shrink-0"></i>
+          <span class="text-xs font-mono font-medium" data-slot="tool-name"></span>
+          <span class="badge ml-1" data-slot="result-badge"></span>
+          <div class="hover-actions flex items-center gap-0.5 ml-auto">
+            <button class="icon-btn w-6 h-6" title="复制输出" data-action="copy-tool-output"><i data-lucide="copy" class="w-3 h-3"></i></button>
+          </div>
+        </button>
+        <div class="collapsible-content collapsed mt-2" data-slot="result-content"></div>
+      </div>
+    </div>
+  </template>
+
+  <!-- System Message Template -->
+  <template id="tpl-msg-system">
+    <div class="flex items-center gap-3 px-4 py-1" data-message-type="system" data-message-id="">
+      <div class="flex-1 h-px" style="background:var(--color-border-subtle);"></div>
+      <div class="flex items-center gap-1.5 flex-shrink-0">
+        <i data-lucide="info" class="w-3 h-3 text-text-tertiary"></i>
+        <span class="text-2xs text-text-tertiary font-sans" data-slot="content"></span>
+      </div>
+      <div class="flex-1 h-px" style="background:var(--color-border-subtle);"></div>
+    </div>
+  </template>
+
+  <!-- Project Item Template -->
+  <template id="tpl-project-item">
+    <div class="panel-item group border-l-[3px] border-l-transparent px-3 py-2.5" role="option" aria-selected="false" tabindex="0" data-item="project" data-project-path="">
+      <div class="flex items-center gap-2">
+        <i data-lucide="folder-git-2" class="w-4 h-4 text-text-tertiary flex-shrink-0"></i>
+        <span class="text-xs font-medium text-text-primary truncate font-sans" data-slot="name"></span>
+      </div>
+      <div class="flex items-center gap-3 mt-1 ml-6">
+        <span class="flex items-center gap-1 text-2xs text-text-secondary">
+          <i data-lucide="message-square" class="w-3 h-3"></i> <span data-slot="session-count"></span>
+        </span>
+        <span class="flex items-center gap-1 text-2xs text-text-secondary">
+          <i data-lucide="clock" class="w-3 h-3"></i> <span data-slot="last-active"></span>
+        </span>
+      </div>
+    </div>
+  </template>
+
+  <!-- Session Item Template -->
+  <template id="tpl-session-item">
+    <div class="panel-item group relative rounded-lg border-l-[3px] border-l-transparent px-3 py-2.5 mb-1" role="option" aria-selected="false" tabindex="0" data-item="session" data-session-id="">
+      <div class="flex items-center gap-2">
+        <input type="checkbox" class="custom-checkbox hidden" data-batch-checkbox aria-label="选择此会话">
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-2">
+            <span class="text-2xs font-mono text-text-secondary" data-slot="date"></span>
+            <span class="hidden w-1.5 h-1.5 rounded-full bg-cta animate-pulse-green" data-slot="live-dot" title="实时"></span>
+          </div>
+          <p class="text-xs text-text-primary font-sans mt-1 line-clamp-2 leading-relaxed" data-slot="preview"></p>
+          <div class="flex items-center gap-3 mt-1.5">
+            <span class="flex items-center gap-1 text-2xs text-text-tertiary">
+              <i data-lucide="timer" class="w-3 h-3"></i> <span data-slot="duration"></span>
+            </span>
+            <span class="flex items-center gap-1 text-2xs text-text-tertiary">
+              <i data-lucide="message-square" class="w-3 h-3"></i> <span data-slot="msg-count"></span>
+            </span>
+            <span class="badge bg-bg-hover text-text-tertiary" data-slot="version"></span>
+          </div>
+        </div>
+      </div>
+      <div class="hover-actions absolute right-2 top-2 flex items-center gap-0.5">
+        <button class="icon-btn w-6 h-6" title="复制恢复命令" data-action="copy-resume"><i data-lucide="copy" class="w-3 h-3"></i></button>
+        <button class="icon-btn w-6 h-6" title="导出会话" data-action="export-session"><i data-lucide="download" class="w-3 h-3"></i></button>
+      </div>
+    </div>
+  </template>
+
+  <!-- Toast Template -->
+  <template id="tpl-toast">
+    <div class="toast pointer-events-auto flex items-center gap-2 px-4 py-2.5 rounded-lg shadow-md min-w-[250px] max-w-[400px]" style="background:var(--color-bg-elevated);border:1px solid var(--color-border);" data-toast>
+      <i data-slot="toast-icon" class="w-4 h-4 flex-shrink-0"></i>
+      <span class="text-xs text-text-primary font-sans flex-1" data-slot="toast-message"></span>
+      <button class="icon-btn w-5 h-5 flex-shrink-0" data-action="dismiss-toast" aria-label="关闭通知">
+        <i data-lucide="x" class="w-3 h-3"></i>
+      </button>
+    </div>
+  </template>
+
+  <!-- App JS (loaded before inline demo script) -->
+  <script src="/static/app.js"></script>
+
+  <!-- ========== INITIALIZATION SCRIPT (static demo + Lucide init) ========== -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // Initialize Lucide icons (needed for both demo and app.js)
+      if (typeof lucide !== 'undefined') lucide.createIcons();
+
+      // If app.js loaded successfully, skip demo-only event handlers
+      if (typeof initPanelResize === 'function') return;
+
+      // ===== Resize Handle Logic =====
+      const handles = document.querySelectorAll('.resize-handle');
+      handles.forEach(handle => {
+        let startX, startWidthLeft, startWidthRight, leftPanel, rightPanel;
+
+        handle.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          const panels = handle.dataset.panels.split(',');
+          if (panels[0] === 'project') {
+            leftPanel = document.getElementById('panel-projects');
+            rightPanel = document.getElementById('panel-sessions');
+          } else {
+            leftPanel = document.getElementById('panel-sessions');
+            rightPanel = document.getElementById('panel-detail');
+          }
+          startX = e.clientX;
+          startWidthLeft = leftPanel.offsetWidth;
+          startWidthRight = rightPanel.offsetWidth;
+          handle.classList.add('dragging');
+          document.body.style.cursor = 'col-resize';
+          document.body.style.userSelect = 'none';
+
+          const onMouseMove = (e) => {
+            const dx = e.clientX - startX;
+            const newLeft = Math.max(parseInt(leftPanel.style.minWidth) || 200, Math.min(parseInt(leftPanel.style.maxWidth) || 500, startWidthLeft + dx));
+            leftPanel.style.width = newLeft + 'px';
+          };
+
+          const onMouseUp = () => {
+            handle.classList.remove('dragging');
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+            // Save to localStorage
+            try {
+              const widths = {
+                project: document.getElementById('panel-projects').offsetWidth,
+                session: document.getElementById('panel-sessions').offsetWidth
+              };
+              localStorage.setItem('cclog:panelWidths', JSON.stringify(widths));
+            } catch(e) {}
+          };
+
+          document.addEventListener('mousemove', onMouseMove);
+          document.addEventListener('mouseup', onMouseUp);
+        });
+      });
+
+      // ===== Restore panel widths =====
+      try {
+        const saved = JSON.parse(localStorage.getItem('cclog:panelWidths'));
+        if (saved) {
+          if (saved.project) document.getElementById('panel-projects').style.width = saved.project + 'px';
+          if (saved.session) document.getElementById('panel-sessions').style.width = saved.session + 'px';
+        }
+      } catch(e) {}
+
+      // ===== Collapsible Toggle =====
+      document.addEventListener('click', (e) => {
+        const toggle = e.target.closest('[data-action="toggle-tool"], [data-action="toggle-thinking"]');
+        if (toggle) {
+          const isExpanded = toggle.getAttribute('aria-expanded') === 'true';
+          toggle.setAttribute('aria-expanded', !isExpanded);
+          toggle.classList.toggle('expanded');
+          const content = toggle.parentElement.querySelector('.collapsible-content');
+          if (content) {
+            content.classList.toggle('collapsed');
+            content.classList.toggle('expanded');
+          }
+        }
+      });
+
+      // ===== Cmd+K Search Modal =====
+      document.addEventListener('keydown', (e) => {
+        if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+          e.preventDefault();
+          toggleSearchModal(true);
+        }
+        if (e.key === 'Escape') {
+          toggleSearchModal(false);
+          toggleExportModal(false);
+          toggleShareModal(false);
+        }
+      });
+
+      document.getElementById('global-search-trigger').addEventListener('click', () => {
+        toggleSearchModal(true);
+      });
+
+      document.querySelectorAll('[data-action="close-search-modal"]').forEach(el => {
+        el.addEventListener('click', () => toggleSearchModal(false));
+      });
+
+      function toggleSearchModal(show) {
+        const modal = document.getElementById('modal-search');
+        if (show) {
+          modal.classList.remove('hidden');
+          setTimeout(() => document.getElementById('modal-search-input').focus(), 50);
+        } else {
+          modal.classList.add('hidden');
+        }
+      }
+
+      // ===== Export Modal =====
+      document.querySelectorAll('[data-action="export-detail"], [data-action="export-session"]').forEach(el => {
+        el.addEventListener('click', () => toggleExportModal(true));
+      });
+      document.querySelectorAll('[data-action="close-export-modal"]').forEach(el => {
+        el.addEventListener('click', () => toggleExportModal(false));
+      });
+
+      function toggleExportModal(show) {
+        const modal = document.getElementById('modal-export');
+        modal.classList.toggle('hidden', !show);
+      }
+
+      // ===== Share Modal =====
+      document.querySelectorAll('[data-action="share-session"]').forEach(el => {
+        el.addEventListener('click', () => toggleShareModal(true));
+      });
+      document.querySelectorAll('[data-action="close-share-modal"]').forEach(el => {
+        el.addEventListener('click', () => toggleShareModal(false));
+      });
+
+      function toggleShareModal(show) {
+        const modal = document.getElementById('modal-share');
+        modal.classList.toggle('hidden', !show);
+      }
+
+      // ===== Sort Dropdown =====
+      const btnSort = document.getElementById('btn-sort');
+      const sortDropdown = document.getElementById('sort-dropdown');
+      if (btnSort && sortDropdown) {
+        btnSort.addEventListener('click', (e) => {
+          e.stopPropagation();
+          sortDropdown.classList.toggle('hidden');
+        });
+        document.addEventListener('click', () => sortDropdown.classList.add('hidden'));
+      }
+
+      // ===== Batch Selection =====
+      const batchToggle = document.getElementById('btn-batch-toggle');
+      const batchBar = document.getElementById('batch-action-bar');
+      if (batchToggle && batchBar) {
+        batchToggle.addEventListener('click', () => {
+          const isActive = batchBar.classList.contains('hidden');
+          batchBar.classList.toggle('hidden', !isActive);
+          batchBar.classList.toggle('flex', isActive);
+          document.querySelectorAll('[data-batch-checkbox]').forEach(cb => {
+            cb.classList.toggle('hidden', !isActive);
+          });
+        });
+      }
+
+      // ===== In-session Search =====
+      document.querySelectorAll('[data-action="search-in-session"]').forEach(el => {
+        el.addEventListener('click', () => {
+          const bar = document.getElementById('session-search-bar');
+          bar.classList.toggle('hidden');
+          bar.classList.toggle('flex');
+          if (!bar.classList.contains('hidden')) {
+            document.getElementById('session-search-input').focus();
+          }
+        });
+      });
+      document.querySelectorAll('[data-action="close-session-search"]').forEach(el => {
+        el.addEventListener('click', () => {
+          const bar = document.getElementById('session-search-bar');
+          bar.classList.add('hidden');
+          bar.classList.remove('flex');
+        });
+      });
+
+      // ===== Filter Clear Buttons =====
+      const projectFilter = document.getElementById('project-filter');
+      const projectClear = document.getElementById('project-filter-clear');
+      if (projectFilter && projectClear) {
+        projectFilter.addEventListener('input', () => {
+          projectClear.classList.toggle('hidden', !projectFilter.value);
+        });
+        projectClear.addEventListener('click', () => {
+          projectFilter.value = '';
+          projectClear.classList.add('hidden');
+          projectFilter.focus();
+        });
+      }
+
+      const sessionFilter = document.getElementById('session-filter');
+      const sessionClear = document.getElementById('session-filter-clear');
+      if (sessionFilter && sessionClear) {
+        sessionFilter.addEventListener('input', () => {
+          sessionClear.classList.toggle('hidden', !sessionFilter.value);
+        });
+        sessionClear.addEventListener('click', () => {
+          sessionFilter.value = '';
+          sessionClear.classList.add('hidden');
+          sessionFilter.focus();
+        });
+      }
+
+      // ===== Expand All / Collapse All =====
+      document.querySelectorAll('[data-action="expand-all"]').forEach(el => {
+        el.addEventListener('click', () => {
+          document.querySelectorAll('#message-list .collapsible-content').forEach(c => {
+            c.classList.remove('collapsed');
+            c.classList.add('expanded');
+          });
+          document.querySelectorAll('#message-list .collapse-toggle').forEach(t => {
+            t.setAttribute('aria-expanded', 'true');
+            t.classList.add('expanded');
+          });
+        });
+      });
+      document.querySelectorAll('[data-action="collapse-all"]').forEach(el => {
+        el.addEventListener('click', () => {
+          document.querySelectorAll('#message-list .collapsible-content').forEach(c => {
+            c.classList.add('collapsed');
+            c.classList.remove('expanded');
+          });
+          document.querySelectorAll('#message-list .collapse-toggle').forEach(t => {
+            t.setAttribute('aria-expanded', 'false');
+            t.classList.remove('expanded');
+          });
+        });
+      });
+
+      // ===== Toast Dismiss =====
+      document.addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-action="dismiss-toast"]');
+        if (btn) {
+          const toast = btn.closest('[data-toast]');
+          if (toast) {
+            toast.classList.add('removing');
+            setTimeout(() => toast.remove(), 300);
+          }
+        }
+      });
+
+      // ===== Panel Item Click (project selection) =====
+      document.addEventListener('click', (e) => {
+        const item = e.target.closest('[data-item="project"]');
+        if (item) {
+          document.querySelectorAll('[data-item="project"]').forEach(p => {
+            p.classList.remove('active');
+            p.setAttribute('aria-selected', 'false');
+            p.classList.remove('border-l-cta');
+            p.classList.add('border-l-transparent');
+            const icon = p.querySelector('[data-lucide="folder-git-2"]');
+            if (icon) { icon.classList.remove('text-cta'); icon.classList.add('text-text-tertiary'); }
+          });
+          item.classList.add('active');
+          item.setAttribute('aria-selected', 'true');
+          item.classList.add('border-l-cta');
+          item.classList.remove('border-l-transparent');
+          const icon = item.querySelector('[data-lucide="folder-git-2"]');
+          if (icon) { icon.classList.add('text-cta'); icon.classList.remove('text-text-tertiary'); }
+        }
+      });
+
+      // ===== Panel Item Click (session selection) =====
+      document.addEventListener('click', (e) => {
+        const item = e.target.closest('[data-item="session"]');
+        if (item && !e.target.closest('.icon-btn') && !e.target.closest('.custom-checkbox')) {
+          document.querySelectorAll('[data-item="session"]').forEach(s => {
+            s.classList.remove('active');
+            s.setAttribute('aria-selected', 'false');
+            s.classList.remove('border-l-cta');
+            s.classList.add('border-l-transparent');
+          });
+          item.classList.add('active');
+          item.setAttribute('aria-selected', 'true');
+          item.classList.add('border-l-cta');
+          item.classList.remove('border-l-transparent');
+        }
+      });
+
+      // ===== Scroll to Bottom =====
+      const messageList = document.getElementById('message-list');
+      const scrollBtn = document.getElementById('scroll-to-bottom');
+      if (messageList && scrollBtn) {
+        messageList.addEventListener('scroll', () => {
+          const nearBottom = messageList.scrollHeight - messageList.scrollTop - messageList.clientHeight < 100;
+          scrollBtn.classList.toggle('hidden', nearBottom);
+          scrollBtn.classList.toggle('flex', !nearBottom);
+        });
+        scrollBtn.addEventListener('click', () => {
+          messageList.scrollTo({ top: messageList.scrollHeight, behavior: 'smooth' });
+        });
+      }
+    });
+  </script>
+</body>
+</html>
