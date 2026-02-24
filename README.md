@@ -2,7 +2,9 @@
 
 🔍 **Claude Code 会话日志查看器** — 三栏式图形化界面，让你轻松浏览、搜索、导出 Claude Code 的所有历史对话。
 
-![CC LOG 主界面](docs/screenshots/main.png)
+![CC LOG 主界面](src/static/Screenshot.png)
+
+docs/screenshots/main.png
 
 ## ✨ 功能特性
 
