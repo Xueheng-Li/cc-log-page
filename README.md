@@ -1,4 +1,4 @@
-# >_ CC LOG
+# Claude Code 会话日志查看器
 
 🔍 **Claude Code 会话日志查看器** — 三栏式图形化界面，让你轻松浏览、搜索、导出 Claude Code 的所有历史对话。
 
