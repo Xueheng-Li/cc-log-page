@@ -247,6 +247,68 @@ function copyToClipboard(text) {
   });
 }
 
+/**
+ * Extract full message text (including tool uses & results) for copy.
+ * Uses the original message data from state.messages via data-index.
+ */
+function getMessageCopyText(msgEl) {
+  const index = parseInt(msgEl.dataset.index, 10);
+  const msg = !isNaN(index) ? state.messages[index] : null;
+
+  if (!msg) {
+    // Fallback: get all text from message body, skip header
+    const body = msgEl.querySelector('.message-body');
+    if (!body) return '';
+    const clone = body.cloneNode(true);
+    const header = clone.querySelector('.message-header');
+    if (header) header.remove();
+    return clone.textContent.trim();
+  }
+
+  // User messages / simple string content
+  if (typeof msg.content === 'string') return msg.content;
+  if (!Array.isArray(msg.content)) return msg.content_text || '';
+
+  const blocks = msg.content;
+  const parts = [];
+
+  for (const block of blocks) {
+    if (block.type === 'text' && block.text) {
+      parts.push(block.text);
+    } else if (block.type === 'thinking') {
+      const text = block.thinking || block.text || '';
+      if (text) parts.push(`<thinking>\n${text}\n</thinking>`);
+    } else if (block.type === 'tool_use') {
+      const toolName = block.name || 'Tool';
+      const input = block.input || {};
+      let inputStr = '';
+      if (toolName === 'Bash' && input.command) {
+        inputStr = input.command;
+      } else if (['Read', 'Write', 'Edit', 'Glob', 'Grep'].includes(toolName)) {
+        const path = input.file_path || input.path || input.pattern || '';
+        inputStr = path;
+        if (toolName === 'Edit' && input.old_string !== undefined) {
+          inputStr += `\n- ${input.old_string}\n+ ${input.new_string || ''}`;
+        }
+      } else {
+        inputStr = JSON.stringify(input, null, 2);
+      }
+      parts.push(`[Tool: ${toolName}]\n${inputStr}`);
+    } else if (block.type === 'tool_result') {
+      const content = block.content || '';
+      const label = block.is_error ? 'Error' : 'Result';
+      parts.push(`[${label}]\n${content}`);
+    }
+  }
+
+  // Fallback if no blocks extracted
+  if (parts.length === 0 && msg.content_text) {
+    return msg.content_text;
+  }
+
+  return parts.join('\n\n');
+}
+
 function downloadFile(content, filename, mimeType = 'text/plain') {
   const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
@@ -1300,14 +1362,15 @@ function attachMessageHandlers(container) {
 }
 
 function attachMessageHandlersToElement(el) {
-  // Copy message button
+  // Copy message button — copies ALL content (text + tool uses + results)
   el.querySelectorAll('.btn-copy-msg').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
       const msgEl = btn.closest('.message');
-      const contentEl = msgEl?.querySelector('.message-content');
-      if (contentEl) {
-        copyToClipboard(contentEl.textContent || contentEl.innerText);
+      if (!msgEl) return;
+      const text = getMessageCopyText(msgEl);
+      if (text) {
+        copyToClipboard(text);
       }
     });
   });

@@ -2,6 +2,14 @@
 
 All notable changes to CC LOG will be documented in this file.
 
+## [1.0.1] - 2026-02-24
+
+### Fixed
+- Copy button on assistant messages now copies ALL content (text, tool uses, tool results, thinking blocks) instead of only the first text block
+
+### Added
+- Playwright test suite for copy button functionality (`tests/test_copy_button.py`)
+
 ## [1.0.0] - 2026-02-24
 
 ### Added
