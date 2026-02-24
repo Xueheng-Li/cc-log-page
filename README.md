@@ -45,8 +45,8 @@
 ### 安装
 
 ```bash
-git clone https://github.com/your-username/cc-log.git
-cd cc-log
+git clone https://github.com/Xueheng-Li/cc-log-page.git
+cd cc-log-page
 pip install -r requirements.txt
 ```
 
